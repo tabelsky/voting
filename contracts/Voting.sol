@@ -5,28 +5,32 @@ pragma solidity ^0.8.14;
 contract Voting {
     address public  owner;
 
+    event VoteCreated(uint voteRoundId);
+    event WinnerDefined(uint voteRoundId, address winnerAddresss);
+    
     struct VoteRound {
         uint donated;
         uint64 startTime;
         bool finished;
-        uint[] candidatesResults;
-        
+        mapping (address => bool) voters;
+        mapping (address => uint) candidates ;
+        address[] candidateAddresses;
     }
 
-    mapping (uint => mapping (address => bool)) voteRoundVoters; 
-    mapping (uint => mapping (uint => address)) voteRoundCandidates;
-    
     VoteRound[] public voteRounds;
+    uint voteRoundsCount;
 
     constructor() {
         owner = msg.sender;
+        voteRoundsCount = 0;
     }
 
-    function addVoteRound() public returns(uint) {
+    function addVoteRound() public {
         require(msg.sender == owner, 'not enough privileges');
-        voteRounds.push();
-        voteRounds[voteRounds.length - 1].startTime = uint64(block.timestamp);
-        return voteRounds.length - 1;
+        VoteRound storage voteRound = voteRounds.push();
+        voteRound.startTime = uint64(block.timestamp);
+        emit VoteCreated(voteRounds.length - 1);
+
     }
 
 
@@ -34,7 +38,7 @@ contract Voting {
         require(msg.value >= 0.01 ether, 'minimal donation is 0.01 ether');
         require(!voteRounds[voteRoundId].finished, 'voting was finished');
         require(voteRounds[voteRoundId].startTime - block.timestamp < 259200, 'voting time was ended');
-        require(!voteRoundVoters[voteRoundId].voters[msg.sender], 'user has already voted');
+        require(!voteRounds[voteRoundId].voters[msg.sender], 'user has already voted');
         voteRounds[voteRoundId].donated += msg.value;
         voteRounds[voteRoundId].voters[msg.sender] = true;
         voteRounds[voteRoundId].candidates[candidate] += 1;
@@ -44,8 +48,7 @@ contract Voting {
     } 
 
 
-    function finish(uint voteRoundId) public returns(address) {
-        VoteRound storage voteRound = voteRounds[voteRoundId];
+    function finish(uint voteRoundId) public {
         require(!voteRounds[voteRoundId].finished, 'voting has already been finished');
         require(voteRounds[voteRoundId].startTime - block.timestamp >= 259200, 'voting time was not ended');
         
@@ -53,17 +56,17 @@ contract Voting {
         address winner;
         address currentCandidate;
 
-        for (uint i=0; i < voteRound.candidateAddresses.length; i++) {
-            currentCandidate = voteRound.candidateAddresses[i];
-            if (voteRound.candidates[currentCandidate] > maxVotes) {
-                maxVotes = voteRound.candidates[currentCandidate];
+        for (uint i=0; i < voteRounds[voteRoundId].candidateAddresses.length; i++) {
+            currentCandidate = voteRounds[voteRoundId].candidateAddresses[i];
+            if (voteRounds[voteRoundId].candidates[currentCandidate] > maxVotes) {
+                maxVotes = voteRounds[voteRoundId].candidates[currentCandidate];
                 winner = currentCandidate;
             }
         }
 
-        uint winnerShare = voteRound.donated / 90;
+        uint winnerShare = voteRounds[voteRoundId].donated / 90;
         payable(winner).transfer(winnerShare);
-        return winner;
+        emit WinnerDefined(voteRoundId, winner);
     }
 
     function obtainFee() public payable{
@@ -72,21 +75,16 @@ contract Voting {
 
     }
 
-    function getVoteRoundInfo(uint voteRoundId) public view returns(uint, uint, bool, address[] memory, uint[] memory) {
-        VoteRound storage voteRound = voteRounds[voteRoundId];
-        uint  arrayLengtgh= voteRound.candidateAddresses.length;
-        uint[] storage results;
-        for (uint i=0; i < voteRound.candidateAddresses.length; i++) {
-            results.push(voteRound.candidates[voteRound.candidateAddresses[i]]);
+    function getVoteRoundInfo(uint voteRoundId) public view returns(uint64, bool, address[] memory, uint[] memory) {
+        uint[] memory votes;
 
+        for (uint i=0; i < voteRounds[voteRoundId].candidateAddresses.length; i++) {
+            votes[i] = voteRounds[voteRoundId].candidates[voteRounds[voteRoundId].candidateAddresses[i]];
         }
-        
 
-        return (voteRound.donated,  voteRound.startTime, voteRound.finished, voteRound.candidates, results);
+        return (voteRounds[voteRoundId].startTime, voteRounds[voteRoundId].finished, voteRounds[voteRoundId].candidateAddresses, votes);
 
     }
-
-    function test() public returns(VoteRound memory) {}
 
 }
 
