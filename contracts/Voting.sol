@@ -37,7 +37,10 @@ contract Voting {
     function vote(uint voteRoundId, address candidate) public payable {
         require(msg.value >= 0.01 ether, 'minimal donation is 0.01 ether');
         require(!voteRounds[voteRoundId].finished, 'voting was finished');
-        require(voteRounds[voteRoundId].startTime - block.timestamp < 259200, 'voting time was ended');
+        unchecked {
+            require(block.timestamp - voteRounds[voteRoundId].startTime < 259200, 'voting time was ended');
+        }
+        
         require(!voteRounds[voteRoundId].voters[msg.sender], 'user has already voted');
         voteRounds[voteRoundId].donated += msg.value;
         voteRounds[voteRoundId].voters[msg.sender] = true;

@@ -45,10 +45,9 @@ beforeEach(async function() {
 
   it ('check doble vote from one voter', async function() {
     let voteRoundId = await createVoteRound(voting);
-    await (await voting.connect(voter_1).vote(voteRoundId, candidate_1.address, {
-      value: ethers.utils.parseEther("1.0")
-  }));
-    expect(voting.connect(voter_1).vote(voteRoundId, candidate_2.address)).to.be.revertedWith('not enough privileges');
+    await (await voting.connect(voter_1).vote(voteRoundId, candidate_1.address, {value: ethers.utils.parseEther("1.0")}));
+    // await (await voting.connect(voter_1).vote(voteRoundId, candidate_1.address, {value: ethers.utils.parseEther("1.0")}));
+    expect(voting.connect(voter_1).vote(voteRoundId, candidate_2.address, {value: ethers.utils.parseEther("1.0")})).to.be.revertedWith('user has already voted');
 
   })
 
