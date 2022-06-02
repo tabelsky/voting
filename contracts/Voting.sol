@@ -53,7 +53,9 @@ contract Voting {
 
     function finish(uint voteRoundId) public {
         require(!voteRounds[voteRoundId].finished, 'voting has already been finished');
-        require(voteRounds[voteRoundId].startTime - block.timestamp >= 259200, 'voting time was not ended');
+        unchecked {
+             require(block.timestamp - voteRounds[voteRoundId].startTime >= 259200, 'voting time was not ended');
+        }
         
         uint maxVotes = 0;
         address winner;
@@ -66,20 +68,29 @@ contract Voting {
                 winner = currentCandidate;
             }
         }
+        voteRounds[voteRoundId].finished = true;
 
-        uint winnerShare = voteRounds[voteRoundId].donated / 90;
+        if (maxVotes == 0) {
+            return;
+        }
+
+        uint winnerShare = (voteRounds[voteRoundId].donated * 90)/100;
         payable(winner).transfer(winnerShare);
         emit WinnerDefined(voteRoundId, winner);
     }
 
-    function obtainFee() public payable{
+    function withdrawal() public payable{
         require(msg.sender == owner, 'not enough privileges');
+        require(address(this).balance > 0, 'not enough balance');
         payable(owner).transfer(address(this).balance);
 
     }
 
     function getVoteRoundInfo(uint voteRoundId) public view returns(uint64, bool, address[] memory, uint[] memory) {
-        uint[] memory votes;
+        
+        
+        
+        uint[] memory votes = new uint[](voteRounds[voteRoundId].candidateAddresses.length);
 
         for (uint i=0; i < voteRounds[voteRoundId].candidateAddresses.length; i++) {
             votes[i] = voteRounds[voteRoundId].candidates[voteRounds[voteRoundId].candidateAddresses[i]];
