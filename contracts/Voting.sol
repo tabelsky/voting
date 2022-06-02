@@ -3,7 +3,9 @@ pragma solidity ^0.8.14;
 
 
 contract Voting {
-    address public  owner;
+
+    address public owner;
+    uint private ownerFee;
 
     event VoteCreated(uint voteRoundId);
     event WinnerDefined(uint voteRoundId, address winnerAddresss);
@@ -18,15 +20,28 @@ contract Voting {
     }
 
     VoteRound[] public voteRounds;
-    uint voteRoundsCount;
 
     constructor() {
         owner = msg.sender;
-        voteRoundsCount = 0;
     }
 
-    function addVoteRound() public {
+    modifier unfinished(uint voteRoundId) {
+      require(!voteRounds[voteRoundId].finished, 'voting has already been finished');
+      _;
+    }
+
+    modifier isOwner() {
         require(msg.sender == owner, 'not enough privileges');
+        _;
+    }
+
+    modifier voteRoundExists(uint voteRoundId) {
+        require(voteRounds.length > voteRoundId, 'vote round does not exist');
+        _;
+    }
+
+
+    function addVoteRound() public isOwner() {
         VoteRound storage voteRound = voteRounds.push();
         voteRound.startTime = uint64(block.timestamp);
         emit VoteCreated(voteRounds.length - 1);
@@ -34,15 +49,15 @@ contract Voting {
     }
 
 
-    function vote(uint voteRoundId, address candidate) public payable {
+    function vote(uint voteRoundId, address candidate) public payable voteRoundExists(voteRoundId) unfinished(voteRoundId) {
         require(msg.value >= 0.01 ether, 'minimal donation is 0.01 ether');
-        require(!voteRounds[voteRoundId].finished, 'voting was finished');
         unchecked {
             require(block.timestamp - voteRounds[voteRoundId].startTime < 259200, 'voting time was ended');
         }
         
         require(!voteRounds[voteRoundId].voters[msg.sender], 'user has already voted');
         voteRounds[voteRoundId].donated += msg.value;
+        ownerFee += (msg.value * 10) / 100;
         voteRounds[voteRoundId].voters[msg.sender] = true;
         voteRounds[voteRoundId].candidates[candidate] += 1;
         if (voteRounds[voteRoundId].candidates[candidate] == 1) {
@@ -51,8 +66,7 @@ contract Voting {
     } 
 
 
-    function finish(uint voteRoundId) public {
-        require(!voteRounds[voteRoundId].finished, 'voting has already been finished');
+    function finish(uint voteRoundId) public voteRoundExists(voteRoundId) unfinished(voteRoundId) {
         unchecked {
              require(block.timestamp - voteRounds[voteRoundId].startTime >= 259200, 'voting time was not ended');
         }
@@ -79,16 +93,14 @@ contract Voting {
         emit WinnerDefined(voteRoundId, winner);
     }
 
-    function withdrawal() public payable{
-        require(msg.sender == owner, 'not enough privileges');
-        require(address(this).balance > 0, 'not enough balance');
-        payable(owner).transfer(address(this).balance);
+    function withdrawal() public payable isOwner(){
+        require(ownerFee > 0, 'not enough balance');
+        payable(owner).transfer(ownerFee);
+        ownerFee = 0;
 
     }
 
-    function getVoteRoundInfo(uint voteRoundId) public view returns(uint64, bool, address[] memory, uint[] memory) {
-        
-        
+    function getVoteRoundInfo(uint voteRoundId) public view  voteRoundExists(voteRoundId) returns(uint64, bool, address[] memory, uint[] memory)  {
         
         uint[] memory votes = new uint[](voteRounds[voteRoundId].candidateAddresses.length);
 

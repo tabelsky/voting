@@ -22,7 +22,7 @@ async function vote(voting, voteRoundId, voter, candidate) {
 }
 
 
-async function increaseBlockchaonTime(time) {
+async function increaseBlockchainTime(time) {
   await ethers.provider.send("evm_increaseTime", [time]);
   await ethers.provider.send("evm_mine");
 }
@@ -34,11 +34,11 @@ function getNow() {
 
 
 describe("Voting", function () {
-  let owner, voter_1, voter_2, voter_3, voter_4, candidate_1, candidate_2, voting
+  let owner, voter_1, voter_2, voter_3, voter_4, candidate_1, candidate_2, candidate_3, voting
 
 
 beforeEach(async function() {
-  [owner, voter_1, voter_2, voter_3, voter_4, candidate_1, candidate_2] = await ethers.getSigners()
+  [owner, voter_1, voter_2, voter_3, voter_4,  candidate_1, candidate_2, candidate_3] = await ethers.getSigners()
   const Voting = await ethers.getContractFactory("Voting", owner);
   voting = await Voting.deploy();
   await voting.deployed();
@@ -69,6 +69,12 @@ beforeEach(async function() {
     expect(creationTime).to.be.below(now+1000);
   })
 
+  it('unexisted vote round', async function() {
+    expect(voting.getVoteRoundInfo(1)).to.be.revertedWith('vote round does not exist');
+    expect(voting.vote(1, candidate_1.address, {value: bigAmount})).to.be.revertedWith('vote round does not exist');
+    expect(voting.finish(1)).to.be.revertedWith('vote round does not exist');
+  })
+
   it('check doble vote from one voter', async function() {
     let voteRoundId = await createVoteRound(voting);
     await voting.connect(voter_1);
@@ -86,7 +92,7 @@ beforeEach(async function() {
 
   it('check voting time', async function() {
     let voteRoundId = await createVoteRound(voting);
-    await increaseBlockchaonTime(259201);
+    await increaseBlockchainTime(259201);
     await voting.connect(voter_1);
     expect(voting.vote(voteRoundId, candidate_2.address, {value: bigAmount})).to.be.revertedWith('voting time was ended');
 
@@ -97,6 +103,7 @@ beforeEach(async function() {
     await vote(voting, voteRoundId, voter_1, candidate_1);
     expect(voting.finish(voteRoundId)).to.be.revertedWith('voting time was not ended');
   })
+
 
   it('check vote results', async function() {
     let voteRoundId = await createVoteRound(voting);
@@ -114,7 +121,7 @@ beforeEach(async function() {
   it('check finish', async function() {
     let voteRoundId = await createVoteRound(voting);
     await vote(voting, voteRoundId, voter_1, candidate_1);   
-    await increaseBlockchaonTime(259201);
+    await increaseBlockchainTime(259201);
     
     await voting.finish(voteRoundId);
     const balaneAfter = await ethers.provider.getBalance(candidate_1.address);
@@ -126,22 +133,59 @@ beforeEach(async function() {
     
   })
 
+  it('check vote finished', async function() {
+    let voteRoundId = await createVoteRound(voting);
+    await vote(voting, voteRoundId, voter_1, candidate_1);   
+    await increaseBlockchainTime(259201);
+    await voting.finish(voteRoundId);
+    expect(vote(voting, voteRoundId, voter_2, candidate_1)).to.be.revertedWith('voting has already been finished'); 
+    expect(voting.finish(voteRoundId)).to.be.revertedWith('voting has already been finished');     
+  })
+
   it('check finish no votes', async function () {
     let voteRoundId = await createVoteRound(voting);
-    await increaseBlockchaonTime(259201);
+    await increaseBlockchainTime(259201);
     expect((await (await voting.finish(voteRoundId)).wait()).events.length).to.equal(0);
     
+  })
+
+  it('check define winner', async function() {
+    let voteRoundId = await createVoteRound(voting);
+    await vote(voting, voteRoundId, voter_1, candidate_1); 
+    await vote(voting, voteRoundId, voter_2, candidate_2);
+    await vote(voting, voteRoundId, voter_3, candidate_2);
+    await vote(voting, voteRoundId, voter_4, candidate_3);
+    await increaseBlockchainTime(259201);
+
+    const eventArgs = (await (await voting.finish(voteRoundId)).wait()).events.args
+
   })
 
   it('check empty withdraw', async function () {
     expect(voting.withdrawal()).to.be.revertedWith('not enough balance');
   })
 
+  it('check not owner withdraw', async function () {
+    let voteRoundId = await createVoteRound(voting);
+    await vote(voting, voteRoundId, voter_1, candidate_1);
+    await increaseBlockchainTime(259201);
+    await voting.finish(voteRoundId);
+    expect((await voting.connect(voter_1)).withdrawal()).to.be.revertedWith('not enough privileges')
+
+  })
+
   it('check withdraw', async function() {
     let voteRoundId = await createVoteRound(voting);
     await vote(voting, voteRoundId, voter_1, candidate_1);
+    await increaseBlockchainTime(259201);
+    await voting.finish(voteRoundId);
+    await voting.withdrawal();
+    expect(await ethers.provider.getBalance(voting.address)).to.equal(0)
+  
     
   })
+
+
 
 
 
