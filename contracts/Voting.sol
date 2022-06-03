@@ -3,14 +3,10 @@ pragma solidity ^0.8.14;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract Voting  is Ownable {
+contract Voting is Ownable {
 
     uint private ownerFee;
 
-    event VoteCreated(uint voteRoundId);
-    event WinnerDefined(uint voteRoundId, address winnerAddresss);
-
-    
     struct VoteRound {
         uint winnerShare;
         uint64 startTime;
@@ -19,13 +15,17 @@ contract Voting  is Ownable {
         uint maxVotes;
         mapping (address => bool) voters;
         mapping (address => uint) canditesId;
-        address[]  candidates ;
+        address[] candidates;
         uint[] votes;
     }
 
     VoteRound[] private voteRounds;
 
+    
+    event VoteCreated(uint voteRoundId);
+    event WinnerDefined(uint voteRoundId, address winnerAddresss);
 
+    
     modifier unfinished(uint voteRoundId) {
         require(!voteRounds[voteRoundId].finished, 'voting has already been finished');
         _;
@@ -36,7 +36,6 @@ contract Voting  is Ownable {
         _;
     }
 
-
     function addVoteRound() public onlyOwner() {
         VoteRound storage voteRound = voteRounds.push();
         voteRound.startTime = uint64(block.timestamp);
@@ -44,20 +43,16 @@ contract Voting  is Ownable {
 
     }
 
-
     function vote(
         uint voteRoundId, 
         address candidate
         ) public payable voteRoundExists(voteRoundId) unfinished(voteRoundId) {
         
         require(msg.value >= 0.01 ether, 'minimal donation is 0.01 ether');
-        unchecked {
-            require(
-                block.timestamp - voteRounds[voteRoundId].startTime < 259200, 
-                'voting time was ended'
-                );
-        }
-        
+        require(
+            block.timestamp - voteRounds[voteRoundId].startTime < 259200,  
+            'voting time was ended'
+            );
         require(!voteRounds[voteRoundId].voters[msg.sender], 'user has already voted');
         
         uint voteFee = (msg.value * 10) / 100;
@@ -84,13 +79,10 @@ contract Voting  is Ownable {
         
     } 
 
-
     function finish(uint voteRoundId) public voteRoundExists(voteRoundId) unfinished(voteRoundId) {
-        unchecked {
-             require(block.timestamp - voteRounds[voteRoundId].startTime >= 259200, 'voting time was not ended');
-        }
-        
-
+     
+        require(block.timestamp - voteRounds[voteRoundId].startTime >= 259200, 'voting time was not ended');
+     
         voteRounds[voteRoundId].finished = true;
 
         if (voteRounds[voteRoundId].maxVotes == 0) {
@@ -104,11 +96,14 @@ contract Voting  is Ownable {
         require(ownerFee > 0, 'not enough balance');
         payable(owner()).transfer(ownerFee);
         ownerFee = 0;
-
     }
 
-    function getVoteRoundInfo(uint voteRoundId) public view  voteRoundExists(voteRoundId)
-     returns(uint64, bool, address[] memory, uint[] memory)  {
+    function getVoteRoundInfo(uint voteRoundId) public view  voteRoundExists(voteRoundId) returns(
+        uint64, 
+        bool, 
+        address[] memory, 
+        uint[] memory
+        ) {
         
         return (
             voteRounds[voteRoundId].startTime, 
@@ -116,8 +111,5 @@ contract Voting  is Ownable {
             voteRounds[voteRoundId].candidates, 
             voteRounds[voteRoundId].votes
             );
-
     }
-
 }
-
