@@ -51,7 +51,7 @@ beforeEach(async function() {
 
   it('only owner is able to create votes', async function () {
     
-    expect(voting.connect(voter_1).addVoteRound()).to.be.revertedWith('not enough privileges');
+    expect(voting.connect(voter_1).addVoteRound()).to.be.revertedWith('Ownable: caller is not the owner');
   })
 
   it('check create vote', async function() {
@@ -170,7 +170,7 @@ beforeEach(async function() {
     await vote(voting, voteRoundId, voter_1, candidate_1);
     await increaseBlockchainTime(259201);
     await voting.finish(voteRoundId);
-    expect((await voting.connect(voter_1)).withdrawal()).to.be.revertedWith('not enough privileges')
+    expect((await voting.connect(voter_1)).withdrawal()).to.be.revertedWith('Ownable: caller is not the owner')
 
   })
 

@@ -1,37 +1,33 @@
 //SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.14;
 
+import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract Voting {
+contract Voting  is Ownable {
 
-    address public owner;
     uint private ownerFee;
 
     event VoteCreated(uint voteRoundId);
     event WinnerDefined(uint voteRoundId, address winnerAddresss);
+
     
     struct VoteRound {
-        uint donated;
+        uint winnerShare;
         uint64 startTime;
         bool finished;
+        address winner;
+        uint maxVotes;
         mapping (address => bool) voters;
-        mapping (address => uint) candidates ;
-        address[] candidateAddresses;
+        mapping (address => uint) canditesId;
+        address[]  candidates ;
+        uint[] votes;
     }
 
-    VoteRound[] public voteRounds;
+    VoteRound[] private voteRounds;
 
-    constructor() {
-        owner = msg.sender;
-    }
 
     modifier unfinished(uint voteRoundId) {
-      require(!voteRounds[voteRoundId].finished, 'voting has already been finished');
-      _;
-    }
-
-    modifier isOwner() {
-        require(msg.sender == owner, 'not enough privileges');
+        require(!voteRounds[voteRoundId].finished, 'voting has already been finished');
         _;
     }
 
@@ -41,7 +37,7 @@ contract Voting {
     }
 
 
-    function addVoteRound() public isOwner() {
+    function addVoteRound() public onlyOwner() {
         VoteRound storage voteRound = voteRounds.push();
         voteRound.startTime = uint64(block.timestamp);
         emit VoteCreated(voteRounds.length - 1);
@@ -49,20 +45,43 @@ contract Voting {
     }
 
 
-    function vote(uint voteRoundId, address candidate) public payable voteRoundExists(voteRoundId) unfinished(voteRoundId) {
+    function vote(
+        uint voteRoundId, 
+        address candidate
+        ) public payable voteRoundExists(voteRoundId) unfinished(voteRoundId) {
+        
         require(msg.value >= 0.01 ether, 'minimal donation is 0.01 ether');
         unchecked {
-            require(block.timestamp - voteRounds[voteRoundId].startTime < 259200, 'voting time was ended');
+            require(
+                block.timestamp - voteRounds[voteRoundId].startTime < 259200, 
+                'voting time was ended'
+                );
         }
         
         require(!voteRounds[voteRoundId].voters[msg.sender], 'user has already voted');
-        voteRounds[voteRoundId].donated += msg.value;
-        ownerFee += (msg.value * 10) / 100;
+        
+        uint voteFee = (msg.value * 10) / 100;
+
+        voteRounds[voteRoundId].winnerShare += (msg.value - voteFee);
+        ownerFee += voteFee;
+
         voteRounds[voteRoundId].voters[msg.sender] = true;
-        voteRounds[voteRoundId].candidates[candidate] += 1;
-        if (voteRounds[voteRoundId].candidates[candidate] == 1) {
-            voteRounds[voteRoundId].candidateAddresses.push(candidate);
+
+        uint candidateId = voteRounds[voteRoundId].canditesId[candidate];
+        if (candidateId == 0) {
+            voteRounds[voteRoundId].candidates.push(candidate);
+            candidateId = voteRounds[voteRoundId].candidates.length;
+            voteRounds[voteRoundId].canditesId[candidate] = candidateId;
+            voteRounds[voteRoundId].votes.push(0);
         }
+
+        voteRounds[voteRoundId].votes[candidateId-1] += 1;
+
+        if (voteRounds[voteRoundId].votes[candidateId-1] > voteRounds[voteRoundId].maxVotes) {
+            voteRounds[voteRoundId].winner = candidate;
+            voteRounds[voteRoundId].maxVotes = voteRounds[voteRoundId].votes[candidateId-1];
+        }
+        
     } 
 
 
@@ -71,44 +90,32 @@ contract Voting {
              require(block.timestamp - voteRounds[voteRoundId].startTime >= 259200, 'voting time was not ended');
         }
         
-        uint maxVotes = 0;
-        address winner;
-        address currentCandidate;
 
-        for (uint i=0; i < voteRounds[voteRoundId].candidateAddresses.length; i++) {
-            currentCandidate = voteRounds[voteRoundId].candidateAddresses[i];
-            if (voteRounds[voteRoundId].candidates[currentCandidate] > maxVotes) {
-                maxVotes = voteRounds[voteRoundId].candidates[currentCandidate];
-                winner = currentCandidate;
-            }
-        }
         voteRounds[voteRoundId].finished = true;
 
-        if (maxVotes == 0) {
+        if (voteRounds[voteRoundId].maxVotes == 0) {
             return;
         }
-
-        uint winnerShare = (voteRounds[voteRoundId].donated * 90)/100;
-        payable(winner).transfer(winnerShare);
-        emit WinnerDefined(voteRoundId, winner);
+        payable(voteRounds[voteRoundId].winner).transfer(voteRounds[voteRoundId].winnerShare);
+        emit WinnerDefined(voteRoundId, voteRounds[voteRoundId].winner);
     }
 
-    function withdrawal() public payable isOwner(){
+    function withdrawal() public payable onlyOwner(){
         require(ownerFee > 0, 'not enough balance');
-        payable(owner).transfer(ownerFee);
+        payable(owner()).transfer(ownerFee);
         ownerFee = 0;
 
     }
 
-    function getVoteRoundInfo(uint voteRoundId) public view  voteRoundExists(voteRoundId) returns(uint64, bool, address[] memory, uint[] memory)  {
+    function getVoteRoundInfo(uint voteRoundId) public view  voteRoundExists(voteRoundId)
+     returns(uint64, bool, address[] memory, uint[] memory)  {
         
-        uint[] memory votes = new uint[](voteRounds[voteRoundId].candidateAddresses.length);
-
-        for (uint i=0; i < voteRounds[voteRoundId].candidateAddresses.length; i++) {
-            votes[i] = voteRounds[voteRoundId].candidates[voteRounds[voteRoundId].candidateAddresses[i]];
-        }
-
-        return (voteRounds[voteRoundId].startTime, voteRounds[voteRoundId].finished, voteRounds[voteRoundId].candidateAddresses, votes);
+        return (
+            voteRounds[voteRoundId].startTime, 
+            voteRounds[voteRoundId].finished, 
+            voteRounds[voteRoundId].candidates, 
+            voteRounds[voteRoundId].votes
+            );
 
     }
 
