@@ -1,3 +1,4 @@
+require('solidity-coverage')
 require('@nomiclabs/hardhat-waffle')
 require('dotenv').config()
 require('./tasks/tasks')
