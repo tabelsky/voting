@@ -14,8 +14,8 @@ npx hardhat run --network ropstenTest  scripts/deploy.js    // deploy to test ne
 
 npx hardhat createVote [--contract <contract address>]  // create a vote  round [on specified contract address]
 npx hardhat vote  [--contract <>] --vote-id <id of a vote round>  --candidate <candidate address>  [--ammount <donation value in ETH>]  // vote for candidate
-npx hardhat voteInfo [--contract <>] --vote-id <>   // get info about vote round
-npx hardhat finish --vote-id <> // vinish vote round
+npx hardhat voteInfo [--contract <>] --vote-id <>   // get info about a vote round
+npx hardhat finish --vote-id <> // vinish a vote round
 npx hardhat withdrawal  // withdrawal available balance
 ```
 
