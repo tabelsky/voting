@@ -1,15 +1,26 @@
-# Basic Sample Hardhat Project
+# Voting
 
-This project demonstrates a basic Hardhat use case. It comes with a sample contract, a test for that contract, a sample script that deploys that contract, and an example of a task implementation, which simply lists the available accounts.
+This project is intented as a solution for cryptonacademy's trial.
 
-Try running some of the following tasks:
+Commands:
 
 ```shell
-npx hardhat accounts
-npx hardhat compile
-npx hardhat clean
-npx hardhat test
-npx hardhat node
-node scripts/sample-script.js
-npx hardhat help
+npx hardhat test    // run tests
+npx hardhat coverage    // check coverage
+npx hardhat check   // lint contract
+npx eslint <filename>   // lint js code
+
+npx hardhat run --network ropstenTest  scripts/deploy.js    // deploy to test network
+
+npx hardhat createVote [--contract <contract address>]  // create a vote  round [on specified contract address]
+npx hardhat vote  [--contract <>] --vote-id <id of a vote round>  --candidate <candidate address>  [--ammount <donation value in ETH>]  // vote for candidate
+npx hardhat voteInfo [--contract <>] --vote-id <>   // get info about vote round
+npx hardhat finish --vote-id <> // vinish vote round
+npx hardhat withdrawal  // withdrawal available balance
+```
+
+<br> .env file must store:
+
+```env
+RINKEBY_PRIVAT_KEY='...'
 ```
